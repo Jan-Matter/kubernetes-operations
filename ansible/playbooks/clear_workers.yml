@@ -1,0 +1,5 @@
+---
+- hosts: masters
+  tasks:
+    - name: Delete the node
+      command: kubectl delete node {{ node_name }}

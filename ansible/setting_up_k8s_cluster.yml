@@ -1,0 +1,4 @@
+---
+- import_playbook: playbooks/setting_up_k8s_nodes.yml
+- import_playbook: playbooks/configure_master.yml
+- import_playbook: playbooks/configure_workers.yml

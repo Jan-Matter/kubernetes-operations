@@ -1,0 +1,30 @@
+---
+- hosts: masters
+  vars_files:
+  - ../env_variables 
+  tasks:
+  - name: Resetting Kubernetes cluster
+    shell: kubeadm reset -f
+  
+  - name: Check if port 6443 is in use
+    shell: "netstat -tuln | grep 6443"
+    register: port_check
+    ignore_errors: true
+
+  - name: Kill the process using port 6443
+    shell: "fuser -k 6443/tcp"
+    when: port_check.rc == 0
+    become: yes
+  
+  - name: Check if port 10250 is in use
+    shell: "netstat -tuln | grep 10250"
+    register: port_check
+    ignore_errors: true
+
+  - name: Kill the process using port 10250
+    shell: "fuser -k 10250/tcp"
+    when: port_check.rc == 0
+    become: yes
+
+  - name: Removing Kubernetes configuration directory
+    shell: rm -rf $HOME/.kube

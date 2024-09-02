@@ -1,0 +1,3 @@
+plugin: community.general.nmap
+strict: False
+address: 10.0.0.0/24

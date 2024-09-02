@@ -1,0 +1,67 @@
+---
+- hosts: all
+  vars_files:
+  - ../env_variables 
+  tasks:
+  - name: Disabling Swap on all nodes
+    shell: swapoff -a
+
+  - name: Commenting Swap entries in /etc/fstab
+    lineinfile:
+      path: /etc/fstab
+      regexp: '^(.*swap.*)$'
+      line: '#\1'
+      state: present
+    
+  - name: Update apt cache
+    apt:
+      update_cache: yes
+    
+  - name: Create directory for apt keyrings
+    file:
+      path: /etc/apt/keyrings
+      state: directory
+      mode: '0755'
+
+  - name: Download Kubernetes apt key
+    command: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key -o /tmp/Release.key
+    args:
+      creates: /tmp/Release.key
+
+  - name: Add Kubernetes apt key
+    command: gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg /tmp/Release.key
+    args:
+      creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+  - name: Add Kubernetes repository
+    apt_repository:
+      repo: 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /'
+      state: present
+
+  - name: Update apt cache again
+    apt:
+      update_cache: yes
+
+  - name: Installing required packages
+    apt:
+     name: "{{ item }}"
+     state: present
+    with_items: "{{ packages }}"
+
+  - name: Starting and Enabling the required services
+    service:
+     name: "{{ item }}"
+     state: started
+     enabled: yes
+    with_items: "{{ services }}"
+
+  - name: Allow Network Ports in Firewalld
+    firewalld:
+     port: "{{ item }}"
+     state: enabled
+     permanent: yes
+     immediate: yes
+    with_items: "{{ ports }}"
+
+  - name: Enabling Bridge Firewall Rule
+    shell: "echo '1' > /proc/sys/net/bridge/bridge-nf-call-iptables"

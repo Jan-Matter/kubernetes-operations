@@ -1,0 +1,29 @@
+---
+- hosts: workers
+  vars_files:
+  - ../env_variables
+  tasks:
+
+  - name: Reset kubeadm
+    shell: kubeadm reset -f
+    ignore_errors: yes
+
+  - name: Check if port 10250 is in use
+    shell: "netstat -tuln | grep 10250"
+    register: port_check
+    ignore_errors: true
+
+  - name: Kill the process using port 10250
+    shell: "fuser -k 10250/tcp"
+    when: port_check.rc == 0
+    become: yes
+
+  - name: Copying token to worker nodes
+    copy:
+      src: "{{ token_file }}"
+      dest: /tmp/join_token
+      force: yes
+
+  - name: Extracting and executing kubeadm join command
+    shell: awk '/kubeadm join/ {found=1} found' /tmp/join_token | bash
+    become: yes
