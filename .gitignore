@@ -1,2 +1,5 @@
 .secrets
 pyenv
+*.tfvars
+.terraform*
+*.tfstate

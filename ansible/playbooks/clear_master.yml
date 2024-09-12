@@ -28,3 +28,7 @@
 
   - name: Removing Kubernetes configuration directory
     shell: rm -rf $HOME/.kube
+
+kubeadm init --pod-network-cidr=10.0.0.0/16 --kubernetes-version=v1.29 --ignore-preflight-errors=NumCPU --upload-certs --apiserver-cert-extra-sans 10.0.0.2
+
+kubeadm join 188.245.41.48:6443 --token 7xcuoz.qf06qf3awdar5m3r --discovery-token-ca-cert-hash sha256:5d00b7519721d1ed70f4097706494db082fd6eca6a3e5a14abe38b2a59d43c19

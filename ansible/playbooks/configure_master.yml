@@ -5,20 +5,13 @@
   tasks:
   - name: Pulling images required for setting up a Kubernetes cluster
     shell: kubeadm config images pull
-  
-  - name: Check if Kubernetes API server is running
-    shell: kubectl get nodes
-    register: cluster_status
-    ignore_errors: yes
-
+    
   - name: Initializing Kubernetes cluster
     shell: kubeadm init --apiserver-advertise-address {{ad_addr}} --pod-network-cidr={{cidr_v}}
     register: output
-    when: cluster_status.rc != 0
 
   - name: Storing Logs and Generated token for future purpose.
     local_action: copy content={{ output.stdout }} dest={{ token_file }}
-    when: cluster_status.rc != 0
 
   - name: Copying required files
     shell: |
@@ -26,6 +19,8 @@
      sudo cp -f /etc/kubernetes/admin.conf $HOME/.kube/config
      sudo chown $(id -u):$(id -g) $HOME/.kube/config
   
+  - name: Installing Calico Network Plugin
+    shell: kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml
+
   - name: Storing Logs and Generated token for future purpose.
     local_action: copy content={{ output.stdout }} dest={{ token_file }}
-    when: cluster_status.rc != 0

@@ -3,28 +3,93 @@
   vars_files:
   - ../env_variables 
   tasks:
+  - name: Update apt get
+    apt:
+      update_cache: yes
+  - name: Upgrade apt get
+    apt:
+      upgrade: dist
+
   - name: Disabling Swap on all nodes
-    shell: swapoff -a
+    command: swapoff -a
 
   - name: Commenting Swap entries in /etc/fstab
-    lineinfile:
-      path: /etc/fstab
-      regexp: '^(.*swap.*)$'
-      line: '#\1'
+    command: sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+  
+  - name: Load overlay module
+    command: sudo modprobe overlay
+
+  - name: Load br_netfilter module
+    command: sudo modprobe br_netfilter
+  
+  - name: Create kubernetes.conf with sysctl parameters
+    copy:
+      dest: /etc/sysctl.d/kubernetes.conf
+      content: |
+        net.bridge.bridge-nf-call-ip6tables = 1
+        net.bridge.bridge-nf-call-iptables = 1
+        net.ipv4.ip_forward = 1
+
+  - name: Apply sysctl parameters
+    command: sudo sysctl --system
+
+  - name: Create containerd.conf with required modules
+    copy:
+      dest: /etc/modules-load.d/containerd.conf
+      content: |
+        overlay
+        br_netfilter
+  
+  - name: Installing required packages
+    apt:
+      name:
+        - curl
+        - gpg
+        - software-properties-common
+        - apt-transport-https
+        - ca-certificates
       state: present
+  
+  - name: Download Docker apt key
+    command: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmour -o /etc/apt/trusted.gpg.d/docker.gpg
+    args:
+      creates: /etc/apt/trusted.gpg.d/docker.gpg
+
+  - name: Add Docker repository
+    shell: |
+      add-apt-repository -y "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+
+  - name: Update apt cache
+    apt:
+      update_cache: yes
+
+  - name: Install containerd.io
+    apt:
+      name: containerd.io
+      state: present
+
+  - name: Generate default containerd config
+    command: containerd config default | sudo tee /etc/containerd/config.toml >/dev/null 2>&1
+
+  #- name: Update containerd config to use SystemdCgroup
+  #  command: sudo sed -i 's/SystemdCgroup \= false/SystemdCgroup \= true/g' /etc/containerd/config.toml
+
+  - name: Restart containerd
+    systemd:
+      name: containerd
+      state: restarted
+
+  - name: Enable containerd
+    systemd:
+      name: containerd
+      enabled: yes
     
   - name: Update apt cache
     apt:
       update_cache: yes
-    
-  - name: Create directory for apt keyrings
-    file:
-      path: /etc/apt/keyrings
-      state: directory
-      mode: '0755'
 
   - name: Download Kubernetes apt key
-    command: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key -o /tmp/Release.key
+    command: curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key -o /tmp/Release.key
     args:
       creates: /tmp/Release.key
 
@@ -35,33 +100,26 @@
 
   - name: Add Kubernetes repository
     apt_repository:
-      repo: 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /'
+      repo: 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /'
       state: present
 
   - name: Update apt cache again
     apt:
       update_cache: yes
 
-  - name: Installing required packages
+  - name: Install Kubernetes components
     apt:
-     name: "{{ item }}"
-     state: present
-    with_items: "{{ packages }}"
-
-  - name: Starting and Enabling the required services
+      name:
+        - kubelet
+        - kubeadm
+        - kubectl
+      state: present
+  
+  - name: Starting and Enabling kubelet service
     service:
-     name: "{{ item }}"
-     state: started
-     enabled: yes
-    with_items: "{{ services }}"
+      name: kubelet
+      state: started
+      enabled: yes
 
-  - name: Allow Network Ports in Firewalld
-    firewalld:
-     port: "{{ item }}"
-     state: enabled
-     permanent: yes
-     immediate: yes
-    with_items: "{{ ports }}"
-
-  - name: Enabling Bridge Firewall Rule
-    shell: "echo '1' > /proc/sys/net/bridge/bridge-nf-call-iptables"
+  - name: Hold Kubernetes components at current version
+    command: sudo apt-mark hold kubelet kubeadm kubectl

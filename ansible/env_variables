@@ -6,6 +6,8 @@ cidr_v: 10.0.0.0/16
 ###################################################################################
 # Dont Edit these below values, these are mandatory to configure kubernetes cluster
 packages:
+- gnupg2
+- software-properties-common
 - docker.io
 - kubeadm
 - kubectl
@@ -14,7 +16,6 @@ packages:
 - apt-transport-https
 - ca-certificates
 - curl
-- gpg
 
 services:
 - docker
